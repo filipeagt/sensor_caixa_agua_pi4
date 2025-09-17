@@ -232,8 +232,14 @@ void controlaBomba() {
   pumpOn = digitalRead(pumpPin);
   if (volumeTanque <= MIN && !pumpOn) {
     digitalWrite(pumpPin, HIGH);
+    if (MQTT.connected()) {
+      MQTT.publish(TOPIC_BOMBA, "on");
+    }
   } else if (volumeTanque >= MAX && pumpOn) {
     digitalWrite(pumpPin, LOW);
+    if (MQTT.connected()) {
+      MQTT.publish(TOPIC_BOMBA, "off");
+    }
   }
 }
 
