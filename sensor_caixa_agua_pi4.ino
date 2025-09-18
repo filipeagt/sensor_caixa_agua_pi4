@@ -2,8 +2,8 @@
 #include <PubSubClient.h>
 
 //WiFi
-const char* SSID = "T350";            // SSID / nome da rede WiFi que deseja se conectar
-const char* PASSWORD = "vasquinhos";  // Senha da rede WiFi que deseja se conectar
+const char* SSID = "REDE";            // SSID / nome da rede WiFi que deseja se conectar
+const char* PASSWORD = "senha";  // Senha da rede WiFi que deseja se conectar
 WiFiClient wifiClient;
 
 //MQTT Server
@@ -228,17 +228,17 @@ void calculaVolume() {
   volumeTanque = round(0.333 * 3.14 * level * (R * R + r * r + R * r));
 }
 
-void controlaBomba() {
+void controlaBomba() {  // Controle automático da bomba
   pumpOn = digitalRead(pumpPin);
   if (volumeTanque <= MIN && !pumpOn) {
     digitalWrite(pumpPin, HIGH);
     if (MQTT.connected()) {
-      MQTT.publish(TOPIC_BOMBA, "on");
+      MQTT.publish(TOPIC_BOMBA, "on_OK");
     }
   } else if (volumeTanque >= MAX && pumpOn) {
     digitalWrite(pumpPin, LOW);
     if (MQTT.connected()) {
-      MQTT.publish(TOPIC_BOMBA, "off");
+      MQTT.publish(TOPIC_BOMBA, "off_OK");
     }
   }
 }
@@ -255,8 +255,10 @@ void recebePacote(char* topic, byte* payload, unsigned int length) {
   // Controla a bomba evitando erros do operador
   if (msg == "on" && !pumpOn && volume < MAX) {
     digitalWrite(pumpPin, HIGH);
+    MQTT.publish(TOPIC_BOMBA, "on_OK");
   }
   if (msg == "off" && pumpOn && volume > MIN) {
     digitalWrite(pumpPin, LOW);
+    MQTT.publish(TOPIC_BOMBA, "off_OK");
   }
 }
