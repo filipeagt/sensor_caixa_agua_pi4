@@ -252,13 +252,22 @@ void recebePacote(char* topic, byte* payload, unsigned int length) {
     msg += c;
   }
   //Serial.println(msg);
-  // Controla a bomba evitando erros do operador
-  if (msg == "on" && !pumpOn && volume < MAX) {
-    digitalWrite(pumpPin, HIGH);
-    MQTT.publish(TOPIC_BOMBA, "on_OK");
+  // Controla a bomba evitando erros do usuário
+  if (msg == "on" && !pumpOn) {
+    if (volume < MAX) {
+      digitalWrite(pumpPin, HIGH);
+      MQTT.publish(TOPIC_BOMBA, "on_OK");
+    } else {
+      MQTT.publish(TOPIC_BOMBA, "!on");
+    }    
   }
-  if (msg == "off" && pumpOn && volume > MIN) {
-    digitalWrite(pumpPin, LOW);
-    MQTT.publish(TOPIC_BOMBA, "off_OK");
+  
+  if (msg == "off" && pumpOn) {
+    if (volume > MIN) {
+      digitalWrite(pumpPin, LOW);
+      MQTT.publish(TOPIC_BOMBA, "off_OK");
+    } else {
+      MQTT.publish(TOPIC_BOMBA, "!off");
+    }    
   }
 }
