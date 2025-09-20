@@ -2,8 +2,8 @@
 #include <PubSubClient.h>
 
 //WiFi
-const char* SSID = "REDE";            // SSID / nome da rede WiFi que deseja se conectar
-const char* PASSWORD = "senha";  // Senha da rede WiFi que deseja se conectar
+const char* SSID = "Rede";            // SSID / nome da rede WiFi que deseja se conectar
+const char* PASSWORD = "qwe@242526";  // Senha da rede WiFi que deseja se conectar
 WiFiClient wifiClient;
 
 //MQTT Server
@@ -88,7 +88,7 @@ void loop() {
 
   mantemConexoes();
   //executa a contagem de pulsos uma vez por segundo
-  if ((millis() - tempo_antes) >= 1000) {
+  /*if ((millis() - tempo_antes) >= 1000) {
 
     //desabilita a interrupcao para realizar a conversao do valor de pulsos
     detachInterrupt(digitalPinToInterrupt(PINO_SENSOR));
@@ -101,8 +101,8 @@ void loop() {
     Serial.print(fluxo);
     Serial.println(" L/min");*/
 
-    //calculo do volume em L passado pelo sensor
-    volume = fluxo / 60;
+  //calculo do volume em L passado pelo sensor
+  /*    volume = fluxo / 60;
 
     //armazenamento do volume
     volume_total += volume;
@@ -113,15 +113,15 @@ void loop() {
     Serial.println(" L");
     Serial.println();*/
 
-    //reinicializacao do contador de pulsos
-    contador = 0;
+  //reinicializacao do contador de pulsos
+  /*   contador = 0;
 
     //atualizacao da variavel tempo_antes
     tempo_antes = millis();
 
     //contagem de pulsos do sensor
     attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), contador_pulso, FALLING);
-  }
+  }*/
   if (tempoAtual - tempoAnterior >= intervalo) {  //Envia  o dado de acordo com o intervalo definido
     tempoAnterior = tempoAtual;
     calculaVolume();
@@ -223,9 +223,10 @@ void calculaVolume() {
   tangente do angulo de inclinação da parede = 0,18 
   */
   //Volume do tronco de cone V = 1/3*pi*h*(R²+r²+Rr)
+  float h = level / 100.0;  //nível da água em metros
   float r = 0.57;
-  float R = r + 0.18 * level;
-  volumeTanque = round(0.333 * 3.14 * level * (R * R + r * r + R * r));
+  float R = r + 0.18 * h;
+  volumeTanque = round((0.333 * 3.14 * h * (R * R + r * r + R * r)) * 1000);  // * 1000 Converte de m³ para litros
 }
 
 void controlaBomba() {  // Controle automático da bomba
@@ -254,20 +255,20 @@ void recebePacote(char* topic, byte* payload, unsigned int length) {
   //Serial.println(msg);
   // Controla a bomba evitando erros do usuário
   if (msg == "on" && !pumpOn) {
-    if (volume < MAX) {
+    if (volumeTanque < MAX) {
       digitalWrite(pumpPin, HIGH);
       MQTT.publish(TOPIC_BOMBA, "on_OK");
     } else {
       MQTT.publish(TOPIC_BOMBA, "!on");
-    }    
+    }
   }
-  
+
   if (msg == "off" && pumpOn) {
-    if (volume > MIN) {
+    if (volumeTanque > MIN) {
       digitalWrite(pumpPin, LOW);
       MQTT.publish(TOPIC_BOMBA, "off_OK");
     } else {
       MQTT.publish(TOPIC_BOMBA, "!off");
-    }    
+    }
   }
 }
