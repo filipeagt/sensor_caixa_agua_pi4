@@ -2,8 +2,8 @@
 #include <PubSubClient.h>
 
 //WiFi
-const char* SSID = "Rede";            // SSID / nome da rede WiFi que deseja se conectar
-const char* PASSWORD = "qwe@242526";  // Senha da rede WiFi que deseja se conectar
+const char* SSID = "Birasrep 2.4";            // SSID / nome da rede WiFi que deseja se conectar
+const char* PASSWORD = "97227618bira";  // Senha da rede WiFi que deseja se conectar
 WiFiClient wifiClient;
 
 //MQTT Server
@@ -234,21 +234,29 @@ void recebePacote(char* topic, byte* payload, unsigned int length) {
   }
   //Serial.println(msg);
   // Controla a bomba evitando erros do usuário
-  if (msg == "on" && !pumpOn) {
-    if (volumeTanque < MAX) {
-      digitalWrite(pumpPin, HIGH);
-      MQTT.publish(TOPIC_BOMBA, "on_OK");
-    } else {
-      MQTT.publish(TOPIC_BOMBA, "!on");
+  if (msg == "on") {
+    if (!pumpOn) { //Bomba desligada
+      if (volumeTanque < MAX) {
+        digitalWrite(pumpPin, HIGH); //Liga a bomba
+        MQTT.publish(TOPIC_BOMBA, "on_OK");
+      } else {
+        MQTT.publish(TOPIC_BOMBA, "!on");
+      }
+    } else { //Bomba já estava ligada
+      MQTT.publish(TOPIC_BOMBA, "on_OK"); //responde on ok
     }
   }
 
-  if (msg == "off" && pumpOn) {
-    if (volumeTanque > MIN) {
-      digitalWrite(pumpPin, LOW);
-      MQTT.publish(TOPIC_BOMBA, "off_OK");
+  if (msg == "off") {
+    if (pumpOn) {
+      if (volumeTanque > MIN) {
+        digitalWrite(pumpPin, LOW);
+        MQTT.publish(TOPIC_BOMBA, "off_OK");
+      } else {
+        MQTT.publish(TOPIC_BOMBA, "!off");
+      }
     } else {
-      MQTT.publish(TOPIC_BOMBA, "!off");
+      MQTT.publish(TOPIC_BOMBA, "off_OK");
     }
   }
 }
