@@ -20,7 +20,7 @@ PubSubClient MQTT(wifiClient);  // Instancia o Cliente MQTT passando o objeto es
 
 //Varáveis para medir e armazenar o nível de água
 char volumeChar[5];
-char vazao[5];
+char vazaoChar[5];
 int level = 0;
 int distFundo = 100;  //Distancia em cm em que o sensor está instalado do fundo da caixa
 
@@ -28,6 +28,7 @@ int distFundo = 100;  //Distancia em cm em que o sensor está instalado do fundo
 #define echoPin 3  //Conectar por um resistor de 1k para limitar a corrente no boot, ao ligar o pino3 inicia em high
 #define trigPin 1  //0,1 e 2 se conecatdos a LOW na inicialização da falha no boot, então o esp não iniciliza se ligados no echo
 #define pumpPin 0  //Saída que controla o relê da bomba
+#define flowPin 2 //definicao do pino do sensor de vazão e de interrupcao
 
 int pumpOn = 0;        //Variável para armazenar o estado da bomba
 int volumeTanque = 0;  // Volume atual (L)
@@ -39,24 +40,13 @@ long duration;  //tempo que q onda trafega
 int distance;   //distância medida
 
 unsigned long tempoAnterior = 0;  //Váriavel que armazena o tempo em ms desde que o programa está rodando
-const long intervalo = 10000;     //10 segundos
+const long intervalo = 10000;     //10 segundos - intervalo de tempo
 
-//definicao do pino do sensor e de interrupcao
-const int PINO_SENSOR = 2;
+//definicao da variavel de contagem de pulsos para o sensor de vazão
+volatile unsigned int contador = 0;
 
-//definicao da variavel de contagem de voltas
-unsigned long contador = 0;
-
-//definicao do fator de calibracao para conversao do valor lido
-const float FATOR_CALIBRACAO = 4.5;
-
-//definicao das variaveis de fluxo e volume
+//definicao da variavel de fluxo
 float fluxo = 0;
-float volume = 0;
-float volume_total = 0;
-
-//definicao da variavel de intervalo de tempo
-unsigned long tempo_antes = 0;
 
 //Declaração das Funções
 void mantemConexoes();  //Garante que as conexoes com WiFi e MQTT Broker se mantenham ativas
@@ -67,69 +57,59 @@ void enviaDados();
 void calculaVolume();
 void controlaBomba();
 void recebePacote(char* topic, byte* payload, unsigned int length);
+ICACHE_RAM_ATTR void contador_pulso(); //para rodar na RAM
 
 void setup() {
+  // Configuração dos pinos de conexão com os sensores e bomba
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(pumpPin, OUTPUT);
-
-  //configuracao do pino do sensor como entrada em nivel logico alto
-  pinMode(PINO_SENSOR, INPUT_PULLUP);
+  pinMode(flowPin, INPUT_PULLUP);
 
   //Serial.begin(115200);
 
   conectaWiFi();
   MQTT.setServer(BROKER_MQTT, BROKER_PORT);
   MQTT.setCallback(recebePacote);
+
+  //Habilita a interrupção do pino do sensor de fluxo
+  attachInterrupt(digitalPinToInterrupt(flowPin), contador_pulso, RISING);
 }
 
 void loop() {
   unsigned long tempoAtual = millis();
 
   mantemConexoes();
-  //executa a contagem de pulsos uma vez por segundo
-  /*if ((millis() - tempo_antes) >= 1000) {
+  // Faz as leituras dos sensores e envia os dados de acordo com o intervalo definido
+  if (tempoAtual - tempoAnterior >= intervalo) {
+    tempoAnterior = tempoAtual;
 
     //desabilita a interrupcao para realizar a conversao do valor de pulsos
-    detachInterrupt(digitalPinToInterrupt(PINO_SENSOR));
+    noInterrupts();
+    unsigned int contagem = contador;
+    contador = 0; // Reinicia o contador de pulsos
+    interrupts();
 
-    //conversao do valor de pulsos para L/min
-    fluxo = ((1000.0 / (millis() - tempo_antes)) * contador) / FATOR_CALIBRACAO;
+    //conversao do valor de pulsos para L/h
+    fluxo = contagem * 2.25;     // pulsos * 2,25 ml
+    fluxo /= (intervalo / 1000.0); // volume / intervalo (ml/s)
+    fluxo *=  (3600.0);            // converte de ml/s para ml/h
+    fluxo /= 1000.0;               // converte ml/h para L/h
 
     //exibicao do valor de fluxo
     /*Serial.print("Fluxo de: ");
     Serial.print(fluxo);
-    Serial.println(" L/min");*/
+    Serial.println(" L/h");*/
 
-  //calculo do volume em L passado pelo sensor
-  /*    volume = fluxo / 60;
-
-    //armazenamento do volume
-    volume_total += volume;
-
-    //exibicao do valor de volume
-    /*Serial.print("Volume: ");
-    Serial.print(volume_total);
-    Serial.println(" L");
-    Serial.println();*/
-
-  //reinicializacao do contador de pulsos
-  /*   contador = 0;
-
-    //atualizacao da variavel tempo_antes
-    tempo_antes = millis();
-
-    //contagem de pulsos do sensor
-    attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), contador_pulso, FALLING);
-  }*/
-  if (tempoAtual - tempoAnterior >= intervalo) {  //Envia  o dado de acordo com o intervalo definido
-    tempoAnterior = tempoAtual;
     calculaVolume();
     controlaBomba();
     enviaDados();
+
   }
 
   MQTT.loop();
+  // para dar tempo ao Wi-Fi processar eventos
+  yield(); // ou delay(0);
 }
 
 void mantemConexoes() {
@@ -203,13 +183,13 @@ void enviaDados() {
   //Serial.println("nível: "+ level);
   itoa(volumeTanque, volumeChar, 10);      //Converte int para char* para envio via MQTT
   MQTT.publish(TOPIC_VOLUME, volumeChar);  //envia o volume atual
-  itoa(fluxo, vazao, 10);
-  MQTT.publish(TOPIC_VAZAO, vazao);
+  itoa(round(fluxo), vazaoChar, 10);
+  MQTT.publish(TOPIC_VAZAO, vazaoChar);
 }
 
 //funcao chamada pela interrupcao para contagem de pulsos
-void contador_pulso() {
-
+ICACHE_RAM_ATTR void contador_pulso() {
+  // Incrementa o contador a cada pulso
   contador++;
 }
 
